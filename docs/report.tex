@@ -229,18 +229,20 @@ RECOVER & --- & --- & STREAMING & FAULT \\
 \subsection{Task set}
 \begin{tabularx}{\textwidth}{@{}p{3.0cm}p{1.9cm}p{1.3cm}p{1.3cm}p{1.3cm}p{1.2cm}p{1.3cm}X@{}}
 \hdrow{Task & Trigger & Period T & WCET C & Deadl.\ D & Prio & U & WCET source} \\[1pt]
-IMU sampling (MPU-9250) & IMU data-ready / timer & 10 ms & $\sim$0.5 ms & 10 ms & High & 0.050 & datasheet + estimate \\
-Flex ADC sampling & ADC timer & 10 ms & $\sim$0.2 ms & 10 ms & High & 0.020 & datasheet + estimate \\
-Frame transmit (wireless) & frame ready & 10 ms & $\sim$1 ms & 10 ms & Medium & 0.100 & estimated \\
-Frame poll & timer & 33 ms & $\sim$5 ms & 33 ms & High & 0.152 & estimated \\
-Inference tick & timer & 250 ms & 15.3 ms & 250 ms & Med & 0.061 & estimated \\
-Action dispatch & event & sporadic & $\sim$2 ms & 250 ms & High & 0.008 & estimated \\
-Watchdog & timer & 3000 ms & $\sim$1 ms & 3000 ms & Low & 0.0003 & source \\
+IMU sample (\texttt{imuTask}) & timer, core 0 & 10 ms & 0.42 ms & 10 ms & High & 0.042 & estimated (I\textsuperscript{2}C @400 kHz) \\
+Flex sample (\texttt{flexTask}) & timer, core 0 & 10 ms & 0.18 ms & 10 ms & High & 0.018 & estimated (ADC 12-bit) \\
+Frame build (\texttt{packetTask}) & queue recv & 10 ms & 0.21 ms & 10 ms & Medium & 0.021 & estimated \\
+Wireless TX (\texttt{txTask}) & frame ready & 10 ms & 0.90 ms & 10 ms & Medium & 0.090 & estimated (UDP sendto) \\
+Host frame poll & timer & 33 ms & $\sim$5 ms & 33 ms & High & 0.152 & estimated \\
+Host inference tick & timer & 250 ms & 15.3 ms & 250 ms & Med & 0.061 & estimated \\
+Watchdog (\texttt{wdtTask}) & timer & 3000 ms & 0.05 ms & 3000 ms & Low & 0.00002 & estimated \\
 \end{tabularx}
 
-\noindent\textbf{Total utilisation U $\approx$ 0.23 (23\%).} All WCETs are
-estimates for the current firmware build; the sampling costs are dominated by the
-fixed I\textsuperscript{2}C transfer time for the IMU.
+\noindent\textbf{Total utilisation U $\approx$ 0.17 on the ESP-32} (four firmware
+tasks) \textbf{and U $\approx$ 0.21 on the host} (poll + inference + watchdog).
+All WCETs are \emph{estimated} from the fixed peripheral costs
+(I\textsuperscript{2}C transfer, ADC conversion, UDP \texttt{sendto}) until
+measured with a GPIO toggle and logic analyser.
 
 \subsection{Scheduling approach}
 \textbf{Task level: Rate-Monotonic (RMS). Operation level: ASAP list
@@ -256,8 +258,12 @@ RMS utilisation bound $U \le n(2^{1/n}-1)$, $n=3$ (poll, inference, watchdog):
 \text{bound} = 3(2^{1/3}-1) = 0.7798,\qquad
 U = \tfrac{5}{33}+\tfrac{15.3}{250}+\tfrac{1}{3000} = 0.2130 \le 0.7798.
 \]
-The task set is \textbf{schedulable}. Worst-case response for the inference
-task: $R \approx 15.3 + 5$ (one poll interference) $= 20.3$ ms $\ll$ 250 ms
+On the ESP-32 the four firmware tasks run under FreeRTOS with rate-monotonic
+priorities (periods 10/10/10/3000 ms, $U_{fw}=0.171$); each completes well inside
+its 10 ms frame because the samplers are pure blocking I\textsuperscript{2}C/ADC
+reads with no dynamic allocation. Both task sets are \textbf{schedulable} by the
+utilisation bound. Worst-case response for the host inference task:
+$R \approx 15.3 + 5$ (one poll interference) $= 20.3$ ms $\ll$ 250 ms
 (slack $\approx$ 229.7 ms), so no response-time analysis is required. ASAP
 control-step chain: window → split → stats → concat → load → predict → conf →
 lookup → execute; all zero mobility except the model load, removable by caching.
@@ -277,7 +283,8 @@ SQLite \texttt{glove.db} & record / train / predict & session per request & one 
 Frame buffer & poll (write), inference (read) & single-threaded & none observed \\
 Model \texttt{.pkl} & inference, retrain & load-per-request & $\sim$1.5 ms (removed by caching) \\
 uinput device & action dispatch & one UInput/action; \texttt{syn()} & serialised by OS input layer \\
-Wireless RX ring buffer & firmware TX / PC RX task & single-producer ring & one buffer copy \\
+I\textsuperscript{2}C bus & \texttt{imuTask} / \texttt{flexTask} & one bus mutex & one transaction \\
+Wireless RX ring buffer & firmware \texttt{txTask} / host poll & single-producer ring & one buffer copy \\
 \end{tabularx}
 
 % ===================== 5 TRACEABILITY =====================
@@ -293,8 +300,11 @@ FSM states & \texttt{stateMachine.js} (new) & --- & SA \\
 Frame poll task & \texttt{backend/app/bridge.py} & get\_latest\_grouped & SA \\
 Inference tick task & \texttt{PredictUI.js} & setInterval(…,250) & DJ \\
 Watchdog task & \texttt{frontend/src/components/RecordingUI.js} & checkBridge & SA \\
-IMU sampling task & ESP-32 firmware & \texttt{imu\_read()} & DJ \\
-Flex ADC task & ESP-32 firmware & \texttt{flex\_read()} & DJ \\
+IMU sampling task & \texttt{firmware/src/imu.c} & \texttt{imuTask()} & DJ \\
+Flex ADC task & \texttt{firmware/src/flex.c} & \texttt{flexTask()} & DJ \\
+Frame build task & \texttt{firmware/src/packet.c} & \texttt{packetTask()} & DJ \\
+Wireless TX task & \texttt{firmware/src/net.c} & \texttt{txTask()} & SA \\
+Watchdog task & \texttt{firmware/src/wdt.c} & \texttt{wdtTask()} & SA \\
 \end{tabularx}
 
 % ===================== 6 PLAN =====================
@@ -304,7 +314,8 @@ Flex ADC task & ESP-32 firmware & \texttt{flex\_read()} & DJ \\
 Cache model in memory & DJ & early Oct & Low; fallback = load per request \\
 Extract FSM module & SA & early Oct & Medium; fallback = FSM stays implicit \\
 Integrate ESP-32 + MPU-9250 + flex on the glove & DJ & mid Oct & High (hardware); fallback = IMU-only \\
-Measure WCETs & DJ & mid Oct & Medium; fallback = keep estimates \\
+FreeRTOS task skeleton (\texttt{imuTask}/\texttt{flexTask}/\texttt{txTask}) & DJ & mid Oct & Medium; fallback = single super-loop \\
+Measure firmware WCETs (GPIO toggle + logic analyser) & DJ & mid Oct & Medium; fallback = keep estimates \\
 Fault-state unit tests & SA & late Oct & Low \\
 \end{tabularx}
 
