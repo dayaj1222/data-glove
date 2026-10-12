@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glove"
+version = "0.1.0"
+description = "Data Glove gesture recognition system"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+linux = ["evdev"]
+train = ["numpy"]
+dev = ["pytest"]
+
+[project.scripts]
+glove = "glove.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["glove*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
