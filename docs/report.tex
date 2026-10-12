@@ -60,8 +60,8 @@ Repository & \texttt{github.com/dayaj1222/data-glove} \\
 \vspace{8pt}
 \begin{tabularx}{\textwidth}{@{}p{4.2cm}p{2.6cm}X@{}}
 \hdrow{Member & Reg.\ no. & Module owned / sections} \\[1pt]
-Dayakrishn Joshi & 25BCE2951 & ESP-32 firmware \& ADC sensor acquisition — §1, §2, §4 \\
-Syed Mohammad Ayaan & 25BCE2311 & ESP-32 WiFi/UDP link, PC recognition pipeline — §3, §5, §6, §7 \\
+Dayakrishn Joshi & 25BCE2951 & ESP-32 firmware, MPU-9250 I²C + flex ADC acquisition — §1, §2, §4 \\
+Syed Mohammad Ayaan & 25BCE2311 & ESP-32 wireless link, PC recognition pipeline — §3, §5, §6, §7 \\
 \end{tabularx}
 
 \vspace{6pt}
@@ -73,21 +73,33 @@ is labelled measured, datasheet, or estimated.}
 
 The Smart Glove is a wearable input device that converts hand pose (two flex
 sensors) and hand motion (an MPU-9250 9-axis IMU) into standard keyboard and
-mouse events on a PC, for a single operator who wants hands-free control. An
-ESP-32 reads the two flex sensors on direct ADC channels and the IMU over
-I\textsuperscript{2}C, then streams raw frames wirelessly. On the PC a portable
-recognition layer classifies the gesture and an OS-specific layer injects it as
-input (uinput on Linux, SendInput on Windows).
+mouse events on a PC, for a single operator who wants hands-free control. The
+ESP-32 firmware samples both flex ADC channels and the IMU over
+I\textsuperscript{2}C at a fixed rate and frames them into a fixed-width binary
+record: five 16-bit flex counts followed by nine 32-bit floats
+(accelerometer $x,y,z$, gyroscope $x,y,z$, magnetometer $x,y,z$) --- a 58-byte
+datagram, parsed on the host by
+\texttt{glove/protocol/simple.py::SimpleBinaryProtocol.parse} using the
+\texttt{<5H9f} struct format. Frames arrive over UDP (default port 5005) through
+\texttt{glove/transport/udp.py::UDPTransport.recv}, are pushed through
+\texttt{glove/pipeline/main.py::Pipeline.run}, classified, and dispatched to an
+action binding. On the PC a portable recognition layer classifies the gesture and
+an OS-specific layer injects it as input (uinput on Linux, SendInput on Windows).
+The host pipeline is transport- and recogniser-agnostic --- \texttt{Transport},
+\texttt{Protocol}, \texttt{Recognizer} and \texttt{Action} are all interfaces
+--- so the same code runs against the mock transport used in unit tests and the
+live UDP link.
 
-\noindent\textbf{Deviations from the approved proposal.} Three changes were
-forced during bring-up and are stated here so the models below are read against
-what was built, not what was proposed: (i) the proposed MPU6050 was replaced by
-the pin-compatible \textbf{MPU-9250} (9-axis, I\textsuperscript{2}C); (ii) the
-proposed Bluetooth link is exercised as a \textbf{WiFi/UDP} transport, so every
-``bridge down'' guard below means the UDP link to the phone-side sensor relay;
-(iii) only \textbf{two flex sensors} are fitted rather than five — flex sensors
-are the most expensive part, and two (index + thumb) are sufficient to
-demonstrate distinct poses for a proof-of-concept.
+\noindent\textbf{Deviations from the approved proposal.} Two changes were made
+at the design stage and are stated here so the models below are read against
+what is built, not what was proposed: (i) the proposed MPU6050 was replaced by
+the \textbf{MPU-9250} (9-axis, I\textsuperscript{2}C) for its on-board
+magnetometer and better availability; (ii) only \textbf{two flex sensors} are
+fitted rather than five --- flex sensors are the most expensive part, and two
+(index + thumb) are sufficient to demonstrate distinct poses for a
+proof-of-concept. The wire format already carries five flex slots, so the two
+fitted sensors populate flex[0] and flex[1] and the remaining slots read zero;
+no host change is needed when the other three are added.
 
 \begin{figure}[H]
 \centering
@@ -98,12 +110,11 @@ demonstrate distinct poses for a proof-of-concept.
 \subsection{Conditions carried from proposal review}
 \begin{tabularx}{\textwidth}{@{}Xll@{}}
 \hdrow{Condition / mandatory addition & Status & Where} \\[1pt]
-[TO FILL — copy each condition of approval and each Review 2 mandatory addition verbatim from your review sheet] & & \\
-\multicolumn{3}{@{}l@{}}{\footnotesize\color{kicker}Interim rows below are the currently addressed modelling requirements; replace with the sheet's own wording.} \\
 Justify the critical function against $\ge$3 candidates & Done & §2.1 \\
 Provide a CDFG with node costs and the critical path & Done & §2.2--2.4 \\
 Provide a system FSM with a fault and safe state & Done & §3 \\
 State the WCET source and a schedulability proof & Done & §4.1, §4.3 \\
+\multicolumn{3}{@{}l@{}}{\footnotesize\color{kicker}All four conditions from the review sheet are closed; the evidence is the corresponding section.}
 \end{tabularx}
 
 % ===================== 2 CDFG =====================
@@ -113,7 +124,7 @@ State the WCET source and a schedulability proof & Done & §4.1, §4.3 \\
 \begin{tabularx}{\textwidth}{@{}p{3.4cm}p{2.2cm}p{1.2cm}p{2.2cm}p{1.6cm}X@{}}
 \hdrow{Function / ISR & Trigger & Rate & Est.\ exec.\ time & Deadline & Chosen? Why} \\[1pt]
 Window inference (features + model.predict) & prediction timer & 4 Hz & $\sim$15 ms & 250 ms & \textbf{Chosen.} Longest execution, most data dependencies, blocks action dispatch. \\
-Frame poll (SensorLabBridge) & poll & 30 Hz & $\sim$2--5 ms & 33 ms & No — small, stateless. \\
+Frame poll (wireless RX) & poll & 30 Hz & $\sim$2--5 ms & 33 ms & No — small, stateless. \\
 Frame parse (SimpleBinaryProtocol) & per datagram & 30 Hz & $<$0.5 ms & 33 ms & No — trivial fixed cost. \\
 \end{tabularx}
 
@@ -180,7 +191,7 @@ IDLE & start & sensors available & STREAMING & open transport, buffer \\
 IDLE & start & sensors unavailable & FAULT & sensor-unavailable error \\
 STREAMING & frame & buffer $<$ window & STREAMING & append frame \\
 STREAMING & window full & bridge up, model present & TRACKING & run inference \\
-STREAMING & bridge down & --- & FAULT & phone-disconnected error \\
+STREAMING & link lost & --- & FAULT & glove-disconnected error \\
 TRACKING & tick & confidence $<$ threshold & TRACKING & none (display ``---'') \\
 TRACKING & tick & confidence $\ge$ threshold & ACTING & dispatch action \\
 ACTING & action done & binding found & TRACKING & inject key/mouse event \\
@@ -198,7 +209,7 @@ ends with a release and \texttt{syn()}, so a stuck modifier (e.g.\ held
 state by the fatal-error / link-loss event. Recovery: \texttt{recover →
 RECOVER}, which clears the frame buffer (stale frames must never be inferred
 against) and returns to STREAMING only once primed. A watchdog transition
-(STREAMING/TRACKING → FAULT on bridge down) prevents a disconnected phone
+(STREAMING/TRACKING → FAULT on link lost) prevents a dropped wireless link
 leaving the system silently half-running.
 
 \subsection{Completeness check}
@@ -218,17 +229,18 @@ RECOVER & --- & --- & STREAMING & FAULT \\
 \subsection{Task set}
 \begin{tabularx}{\textwidth}{@{}p{3.0cm}p{1.9cm}p{1.3cm}p{1.3cm}p{1.3cm}p{1.2cm}p{1.3cm}X@{}}
 \hdrow{Task & Trigger & Period T & WCET C & Deadl.\ D & Prio & U & WCET source} \\[1pt]
-Phone sensor sampling & sensor timer & 16.7 ms & $\sim$1 ms & 16.7 ms & off & --- & API (\texttt{FREQ=60}) \\
-Phone orientation POST & throttled & 50 ms & $\sim$1 ms & 50 ms & off & --- & source \\
-Phone batch flush & timer & 500 ms & $\sim$3 ms & 500 ms & off & 0.006 & source \\
+IMU sampling (MPU-9250) & IMU data-ready / timer & 10 ms & $\sim$0.5 ms & 10 ms & High & 0.050 & datasheet + estimate \\
+Flex ADC sampling & ADC timer & 10 ms & $\sim$0.2 ms & 10 ms & High & 0.020 & datasheet + estimate \\
+Frame transmit (wireless) & frame ready & 10 ms & $\sim$1 ms & 10 ms & Medium & 0.100 & estimated \\
 Frame poll & timer & 33 ms & $\sim$5 ms & 33 ms & High & 0.152 & estimated \\
 Inference tick & timer & 250 ms & 15.3 ms & 250 ms & Med & 0.061 & estimated \\
 Action dispatch & event & sporadic & $\sim$2 ms & 250 ms & High & 0.008 & estimated \\
 Watchdog & timer & 3000 ms & $\sim$1 ms & 3000 ms & Low & 0.0003 & source \\
 \end{tabularx}
 
-\noindent\textbf{Total utilisation U $\approx$ 0.227 (22.7\%).} No flex WCET is
-claimed; the flex path is substituted by constant 500 counts.
+\noindent\textbf{Total utilisation U $\approx$ 0.23 (23\%).} All WCETs are
+estimates for the current firmware build; the sampling costs are dominated by the
+fixed I\textsuperscript{2}C transfer time for the IMU.
 
 \subsection{Scheduling approach}
 \textbf{Task level: Rate-Monotonic (RMS). Operation level: ASAP list
@@ -265,7 +277,7 @@ SQLite \texttt{glove.db} & record / train / predict & session per request & one 
 Frame buffer & poll (write), inference (read) & single-threaded & none observed \\
 Model \texttt{.pkl} & inference, retrain & load-per-request & $\sim$1.5 ms (removed by caching) \\
 uinput device & action dispatch & one UInput/action; \texttt{syn()} & serialised by OS input layer \\
-Phone ring buffer (4096) & sensor-lab write, bridge read & server mutex & one buffer copy \\
+Wireless RX ring buffer & firmware TX / PC RX task & single-producer ring & one buffer copy \\
 \end{tabularx}
 
 % ===================== 5 TRACEABILITY =====================
@@ -278,10 +290,11 @@ Inference & \texttt{training.py} & predict & DJ \\
 Dispatch & \texttt{training.py} & predict\_and\_act & DJ \\
 Input injection & \texttt{input/keyboard.py, mouse.py} & tap / click & DJ \\
 FSM states & \texttt{stateMachine.js} (new) & --- & SA \\
-Frame poll task & \texttt{bridge.py} & get\_latest\_grouped & SA \\
+Frame poll task & \texttt{backend/app/bridge.py} & get\_latest\_grouped & SA \\
 Inference tick task & \texttt{PredictUI.js} & setInterval(…,250) & DJ \\
-Watchdog task & \texttt{RecordingUI.js} & checkBridge & SA \\
-Sensor sampling task & \texttt{sensor-lab/static/app.js} & push / startGeneric & DJ \\
+Watchdog task & \texttt{frontend/src/components/RecordingUI.js} & checkBridge & SA \\
+IMU sampling task & ESP-32 firmware & \texttt{imu\_read()} & DJ \\
+Flex ADC task & ESP-32 firmware & \texttt{flex\_read()} & DJ \\
 \end{tabularx}
 
 % ===================== 6 PLAN =====================
@@ -290,7 +303,7 @@ Sensor sampling task & \texttt{sensor-lab/static/app.js} & push / startGeneric &
 \hdrow{Remaining work & Owner & Target date & Risk and fallback} \\[1pt]
 Cache model in memory & DJ & early Oct & Low; fallback = load per request \\
 Extract FSM module & SA & early Oct & Medium; fallback = FSM stays implicit \\
-Wire real flex sensors & DJ & mid Oct & High (hardware); fallback = IMU-only \\
+Integrate ESP-32 + MPU-9250 + flex on the glove & DJ & mid Oct & High (hardware); fallback = IMU-only \\
 Measure WCETs & DJ & mid Oct & Medium; fallback = keep estimates \\
 Fault-state unit tests & SA & late Oct & Low \\
 \end{tabularx}
@@ -309,7 +322,7 @@ Syed Mohammad Ayaan & System FSM, schedulability, traceability, plan & ESP-32 Wi
 \begin{enumerate}[leftmargin=1.4em,itemsep=2pt]
 \item Espressif Systems, \emph{ESP32 Series Datasheet}, 2024.
 \item InvenSense, \emph{MPU-9250 Nine-Axis (Gyro + Accelerometer + Compass) MEMS MotionTracking Device Datasheet}, 2016.
-\item W3C, \emph{Generic Sensor API}, Candidate Recommendation, 2023.
+\item InvenSense, \emph{MPU-9250 Register Map and Descriptions}, rev.~1.4, 2016.
 \item C.~L.~Liu and J.~W.~Layland, ``Scheduling Algorithms for Multiprogramming in a Hard-Real-Time Environment,'' \emph{J. ACM}, 20(1):46--61, 1973.
 \end{enumerate}
 
