@@ -12,7 +12,7 @@ Project title Gesture-Controlled Smart Glove for Human–Computer Interaction
 | Repository |      |      | github.com/dayaj1222/data-glove |          |          |        |            |     |
 |            |      |      | Reg.                            | no.      | Module   | owned  | / sections |     |
 Member
-Dayakrishn Joshi 25BCE2951 ESP-32 firmware, MPU-9250 I²C + flex ADC acquisi-
+Dayakrishn Joshi 25BCE2951 ESP-32 firmware, MPU-6500 I²C + flex ADC acquisi-
 |     |     |     |     |     |     | §1, | §2, §4 |     |
 | --- | --- | --- | --- | --- | --- | --- | ------ | --- |
 tion —
@@ -22,11 +22,12 @@ Diagrams are our own (Excalidraw and TikZ). Every timing figure is labelled meas
 | 1   | System | recap |     |     |     |     |     |     |
 | --- | ------ | ----- | --- | --- | --- | --- | --- | --- |
 TheSmartGloveisawearableinputdevicethatconvertshandpose(twoflexsensors)andhandmotion
-(an MPU-9250 9-axis IMU) into standard keyboard and mouse events on a PC, for a single operator
+(an MPU-6500 6-axis IMU) into standard keyboard and mouse events on a PC, for a single operator
 whowantshands-freecontrol. TheESP-32firmwaresamplesbothflexADCchannelsandtheIMUover
 I2Catafixedrateandframesthemintoafixed-widthbinaryrecord:
 five16-bitflexcountsfollowedby
-nine32-bitfloats(accelerometerx,y,z,gyroscopex,y,z,magnetometerx,y,z)—a58-bytedatagram,
+nine32-bitfloats(accelerometerx,y,z,gyroscopex,y,z,andthreemagnetometerslotsthatarealwayszero,
+sincetheMPU-6500hasnomagnetometer)—a48-bytedatagram,
 parsed on the host by glove/protocol/simple.py::SimpleBinaryProtocol.parse using the <5H9f
 structformat. FramesarriveoverUDP(defaultport5005)throughglove/transport/udp.py::UDPTransport.recv,
 are pushed through glove/pipeline/main.py::Pipeline.run, classified, and dispatched to an ac-
@@ -37,8 +38,9 @@ code runs against the mock transport used in unit tests and the live UDP link.
 Deviations from the approved proposal. Two changes were made at the design stage and are
 statedheresothemodelsbelowarereadagainstwhatisbuilt,notwhatwasproposed: (i)theproposed
 I2C)
-MPU6050 was replaced by the MPU-9250 (9-axis, for its on-board magnetometer and better
-availability; (ii)onlytwo flex sensorsarefittedratherthanfive—flexsensorsarethemostexpensive
+MPU6050 was replaced by the MPU-6500 (6-axis; a 9-axis MPU-9250 was evaluated for its
+on-board magnetometer, but the fitted part has none, so the three magnetometer slots read
+zero); (ii)onlytwo flex sensorsarefittedratherthanfive—flexsensorsarethemostexpensive
 part, andtwo(index+thumb)aresufficienttodemonstratedistinctposesforaproof-of-concept. The
 wire format already carries five flex slots, so the two fitted sensors populate flex[0] and flex[1] and the
 remaining slots read zero; no host change is needed when the other three are added.
@@ -297,7 +299,7 @@ Watchdog task frontend/src/components/RcehceocrkdBirnidgUgeI.js SA
 Cache model in memory DJ early Oct Low; fallback = load per request
 Extract FSM module SA early Oct Medium; fallback = FSM stays im-
 plicit
-Integrate ESP-32 + MPU-9250 + DJ mid Oct High (hardware); fallback = IMU-
+Integrate ESP-32 + MPU-6500 + DJ mid Oct High (hardware); fallback = IMU-
 | flex on | the glove |     |     |     | only |     |     |     |     |
 | ------- | --------- | --- | --- | --- | ---- | --- | --- | --- | --- |
 FreeRTOS task skeleton DJ mid Oct Medium; fallback=singlesuper-loop
@@ -321,9 +323,9 @@ References
 |              | · ·      |                         |       |     |     |     |     |     |     |
 | BACSE324     | Review 2 | Data Glove              |       |     |     |     |     |     | 7   |
 
-2. InvenSense,MPU-9250Nine-Axis(Gyro+Accelerometer+Compass)MEMSMotionTrackingDeviceDatasheet,
+2. InvenSense,MPU-6500Six-Axis(Gyro+Accelerometer)MEMSMotionTrackingDeviceDatasheet,
 2016.
-| 3. InvenSense, | MPU-9250 | Register Map | and Descriptions, | rev. 1.4, 2016. |     |
+| 3. InvenSense, | MPU-6500 | Register Map | and Descriptions, | rev. 1.4, 2016. |     |
 | -------------- | -------- | ------------ | ----------------- | --------------- | --- |
 4. C. L. Liu and J. W. Layland, “Scheduling Algorithms for Multiprogramming in a Hard-Real-Time Environ-
 | ment,” | J. ACM, 20(1):46–61, | 1973. |     |     |     |

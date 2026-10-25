@@ -60,7 +60,7 @@ Repository & \texttt{github.com/dayaj1222/data-glove} \\
 \vspace{8pt}
 \begin{tabularx}{\textwidth}{@{}p{4.2cm}p{2.6cm}X@{}}
 \hdrow{Member & Reg.\ no. & Module owned / sections} \\[1pt]
-Dayakrishn Joshi & 25BCE2951 & ESP-32 firmware, MPU-9250 I²C + flex ADC acquisition — §1, §2, §4 \\
+Dayakrishn Joshi & 25BCE2951 & ESP-32 firmware, MPU-6500 I²C + flex ADC acquisition — §1, §2, §4 \\
 Syed Mohammad Ayaan & 25BCE2311 & ESP-32 wireless link, PC recognition pipeline — §3, §5, §6, §7 \\
 \end{tabularx}
 
@@ -72,13 +72,14 @@ is labelled measured, datasheet, or estimated.}
 \section{System recap}
 
 The Smart Glove is a wearable input device that converts hand pose (two flex
-sensors) and hand motion (an MPU-9250 9-axis IMU) into standard keyboard and
+sensors) and hand motion (an MPU-6500 6-axis IMU) into standard keyboard and
 mouse events on a PC, for a single operator who wants hands-free control. The
 ESP-32 firmware samples both flex ADC channels and the IMU over
 I\textsuperscript{2}C at a fixed rate and frames them into a fixed-width binary
 record: five 16-bit flex counts followed by nine 32-bit floats
-(accelerometer $x,y,z$, gyroscope $x,y,z$, magnetometer $x,y,z$) --- a 58-byte
-datagram, parsed on the host by
+(accelerometer $x,y,z$, gyroscope $x,y,z$, and three magnetometer slots that are
+always zero, since the MPU-6500 has no magnetometer) --- a 48-byte datagram,
+parsed on the host by
 \texttt{glove/protocol/simple.py::SimpleBinaryProtocol.parse} using the
 \texttt{<5H9f} struct format. Frames arrive over UDP (default port 5005) through
 \texttt{glove/transport/udp.py::UDPTransport.recv}, are pushed through
@@ -93,8 +94,9 @@ live UDP link.
 \noindent\textbf{Deviations from the approved proposal.} Two changes were made
 at the design stage and are stated here so the models below are read against
 what is built, not what was proposed: (i) the proposed MPU6050 was replaced by
-the \textbf{MPU-9250} (9-axis, I\textsuperscript{2}C) for its on-board
-magnetometer and better availability; (ii) only \textbf{two flex sensors} are
+the \textbf{MPU-6500} (6-axis, I\textsuperscript{2}C); a 9-axis MPU-9250 was
+evaluated for its on-board magnetometer, but the fitted part has none, so the
+three magnetometer slots read zero. (ii) only \textbf{two flex sensors} are
 fitted rather than five --- flex sensors are the most expensive part, and two
 (index + thumb) are sufficient to demonstrate distinct poses for a
 proof-of-concept. The wire format already carries five flex slots, so the two
@@ -313,7 +315,7 @@ Watchdog task & \texttt{firmware/src/wdt.c} & \texttt{wdtTask()} & SA \\
 \hdrow{Remaining work & Owner & Target date & Risk and fallback} \\[1pt]
 Cache model in memory & DJ & early Oct & Low; fallback = load per request \\
 Extract FSM module & SA & early Oct & Medium; fallback = FSM stays implicit \\
-Integrate ESP-32 + MPU-9250 + flex on the glove & DJ & mid Oct & High (hardware); fallback = IMU-only \\
+Integrate ESP-32 + MPU-6500 + flex on the glove & DJ & mid Oct & High (hardware); fallback = IMU-only \\
 FreeRTOS task skeleton (\texttt{imuTask}/\texttt{flexTask}/\texttt{txTask}) & DJ & mid Oct & Medium; fallback = single super-loop \\
 Measure firmware WCETs (GPIO toggle + logic analyser) & DJ & mid Oct & Medium; fallback = keep estimates \\
 Fault-state unit tests & SA & late Oct & Low \\
@@ -332,8 +334,8 @@ Syed Mohammad Ayaan & System FSM, schedulability, traceability, plan & ESP-32 Wi
 \small
 \begin{enumerate}[leftmargin=1.4em,itemsep=2pt]
 \item Espressif Systems, \emph{ESP32 Series Datasheet}, 2024.
-\item InvenSense, \emph{MPU-9250 Nine-Axis (Gyro + Accelerometer + Compass) MEMS MotionTracking Device Datasheet}, 2016.
-\item InvenSense, \emph{MPU-9250 Register Map and Descriptions}, rev.~1.4, 2016.
+\item InvenSense, \emph{MPU-6500 Six-Axis (Gyro + Accelerometer) MEMS MotionTracking Device Datasheet}, 2016.
+\item InvenSense, \emph{MPU-6500 Register Map and Descriptions}, rev.~1.4, 2016.
 \item C.~L.~Liu and J.~W.~Layland, ``Scheduling Algorithms for Multiprogramming in a Hard-Real-Time Environment,'' \emph{J. ACM}, 20(1):46--61, 1973.
 \end{enumerate}
 
