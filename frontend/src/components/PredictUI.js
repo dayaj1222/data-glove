@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getGestures } from '../api';
-import PhoneOrientation from './PhoneOrientation';
+import { useEspFrame } from '../hooks/useEspFrame';
 
 function PredictUI() {
   const [gestures, setGestures] = useState([]);
@@ -9,7 +9,7 @@ function PredictUI() {
   const [status, setStatus] = useState('idle');
   const [frameCount, setFrameCount] = useState(0);
   const [bufferSize, setBufferSize] = useState(60);
-  const [useBridge, setUseBridge] = useState(true);
+  const [useEsp, setUseEsp] = useState(true);
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.6);
   const [latestFrame, setLatestFrame] = useState(null);
   const [history, setHistory] = useState([]);
@@ -34,18 +34,6 @@ function PredictUI() {
     }
   };
 
-  const fetchFrameFromBridge = async () => {
-    try {
-      const res = await fetch('/api/bridge/latest');
-      if (res.ok) {
-        const data = await res.json();
-        return data;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  };
 
   const generateMockFrame = () => ({
     flex_0: 500 + 400 * Math.random(),
@@ -121,6 +109,14 @@ function PredictUI() {
     setLatestFrame(frame);
   };
 
+  // Live frames from the ESP, polled only while prediction is running.
+  const { frame: liveFrame } = useEspFrame(isRunning && useEsp);
+
+  useEffect(() => {
+    if (isRunning && useEsp && liveFrame) addFrame(liveFrame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveFrame, isRunning, useEsp]);
+
   const startPrediction = async () => {
     if (isRunning) return;
     setIsRunning(true);
@@ -133,11 +129,10 @@ function PredictUI() {
     setFrameCount(0);
     setStatus('Starting...');
 
-    intervalRef.current = setInterval(async () => {
-      let frame = useBridge ? await fetchFrameFromBridge() : null;
-      if (!frame) frame = generateMockFrame();
-      addFrame(frame);
-    }, 33);
+    // If the ESP is disabled, fall back to mock frames at the same rate.
+    if (!useEsp) {
+      intervalRef.current = setInterval(() => addFrame(generateMockFrame()), 33);
+    }
 
     // Predict every 250ms (slower, more stable)
     predictIntervalRef.current = setInterval(runPrediction, 250);
@@ -171,13 +166,12 @@ function PredictUI() {
             {status} {actionTriggered && '⚡ Action triggered'}
           </div>
         </div>
-        <PhoneOrientation accel={latestFrame} gyro={latestFrame} size={56} />
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px', alignItems: 'center' }}>
         <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <input type="checkbox" checked={useBridge} onChange={e => setUseBridge(e.target.checked)} />
-          Phone
+          <input type="checkbox" checked={useEsp} onChange={e => setUseEsp(e.target.checked)} />
+          ESP32
         </label>
         <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
           Window: <input type="number" value={bufferSize} onChange={e => setBufferSize(Math.max(20, parseInt(e.target.value) || 60))} style={{ width: '48px' }} />

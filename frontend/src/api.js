@@ -27,5 +27,20 @@ export const deleteAllRecordings = (gestureId) => API.delete(`/recordings/gestur
 // Training
 export const trainModel = (gestureIds, modelType = 'random_forest', name = null) =>
   API.post('/training/train', { gesture_ids: gestureIds, model_type: modelType, name });
+
+// Device (ESP32 serial)
+export const deviceStatus = () => API.get('/device/status');
+export const devicePorts = () => API.get('/device/ports');
+export const deviceOpen = (port, baud = 115200) => API.post('/device/open', { port, baud });
+export const deviceClose = () => API.post('/device/close');
+export const deviceReset = (bootloader = false) => API.post('/device/reset', { bootloader });
+export const deviceSend = (text) => API.post('/device/send', { text });
+export const deviceSensors = (limit = 200) => API.get('/device/sensors', { params: { limit } });
+export const deviceCodeList = () => API.get('/device/code');
+export const deviceCodeRead = (filename) => API.get(`/device/code/${filename}`);
+export const deviceCodeWrite = (filename, content) => API.put('/device/code', { filename, content });
+export const deviceCodeNew = () => API.post('/device/code/new');
+export const deviceFlash = (payload = {}) => API.post('/device/flash', payload);
+export const deviceFlashStatus = () => API.get('/device/flash/status');
 export const getModels = () => API.get('/training/models');
 export const predict = (frame) => API.post('/training/predict', { frame });

@@ -9,6 +9,8 @@ env/
 
 # Node
 node_modules/
+frontend/build/
+frontend/.cache/
 npm-debug.log*
 yarn-error.log*
 

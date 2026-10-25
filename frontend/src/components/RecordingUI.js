@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getGestures, startSession, saveRecording, getGestureRecordings, deleteRecording, deleteAllRecordings } from '../api';
-import PhoneOrientation from './PhoneOrientation';
+import { useEspFrame } from '../hooks/useEspFrame';
 
 function RecordingUI() {
   const [gestures, setGestures] = useState([]);
@@ -10,34 +10,35 @@ function RecordingUI() {
   const [recordings, setRecordings] = useState([]);
   const [status, setStatus] = useState('idle');
   const [frameCount, setFrameCount] = useState(0);
-  const [latestFrame, setLatestFrame] = useState(null);
-  const [bridgeStatus, setBridgeStatus] = useState(null);
+
+  const [espConnected, setEspConnected] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [deleting, setDeleting] = useState(false);
   const bufferRef = useRef([]);
   const intervalRef = useRef(null);
   const timerRef = useRef(null);
 
+  // Live frames + connection state, owned by the hook.
+  const { frame: liveFrame, connected: liveConnected } = useEspFrame(true);
+
   useEffect(() => {
     loadGestures();
     startNewSession();
-    checkBridge();
-    const bridgeInterval = setInterval(checkBridge, 3000);
-    return () => {
-      clearInterval(bridgeInterval);
-      stopRecording();
-    };
+    return () => stopRecording();
+    // Mount-only: gesture list + session are created once per visit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const checkBridge = async () => {
-    try {
-      const res = await fetch('/api/bridge/status');
-      const data = await res.json();
-      setBridgeStatus(data);
-    } catch {
-      setBridgeStatus({ connected: false });
-    }
-  };
+  useEffect(() => {
+    setEspConnected(liveConnected);
+  }, [liveConnected]);
+
+  // Feed every live frame into the recording buffer while recording.
+  useEffect(() => {
+    if (!isRecording || !liveFrame) return;
+    bufferRef.current.push(liveFrame);
+    setFrameCount(bufferRef.current.length);
+  }, [liveFrame, isRecording]);
 
   const loadGestures = async () => {
     try {
@@ -71,26 +72,13 @@ function RecordingUI() {
     }
   };
 
-  const fetchFrameFromBridge = async () => {
-    try {
-      const res = await fetch('/api/bridge/latest');
-      if (res.ok) {
-        const data = await res.json();
-        return data;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  };
-
   const startRecording = async () => {
     if (!selectedGesture) {
       alert('Select a gesture first');
       return;
     }
-    if (!bridgeStatus?.connected) {
-      alert('Phone not connected. Start sensor-lab and open the tunnel on your phone.');
+    if (!espConnected) {
+      alert('ESP32 not connected. Open the port in the ESP Monitor tab first.');
       return;
     }
 
@@ -104,14 +92,8 @@ function RecordingUI() {
       setRecordingTime(t => t + 0.1);
     }, 100);
 
-    intervalRef.current = setInterval(async () => {
-      const frame = await fetchFrameFromBridge();
-      if (frame) {
-        bufferRef.current.push(frame);
-        setLatestFrame(frame);
-        setFrameCount(bufferRef.current.length);
-      }
-    }, 33);
+    // Frames now arrive via the useEspFrame effect above; only the timer
+    // needs starting here.
   };
 
   const stopRecording = async () => {
@@ -191,10 +173,9 @@ function RecordingUI() {
         <div>
           <h2 style={{ margin: 0 }}>Record Data</h2>
           <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            {bridgeStatus?.connected ? 'Phone connected' : 'Phone disconnected'}
+            {espConnected ? 'ESP32 connected' : 'ESP32 disconnected'}
           </p>
         </div>
-        <PhoneOrientation accel={latestFrame} gyro={latestFrame} size={60} />
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '16px', alignItems: 'center' }}>
@@ -236,7 +217,7 @@ function RecordingUI() {
             <button 
               className="primary" 
               onClick={startRecording} 
-              disabled={!selectedGesture || !bridgeStatus?.connected || deleting}
+              disabled={!selectedGesture || !espConnected || deleting}
               style={{ padding: '10px 28px' }}
             >
               Start
