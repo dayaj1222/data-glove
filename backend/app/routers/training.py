@@ -22,6 +22,25 @@ MODEL_DIR = "models"
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 
+_model_cache: dict = {}
+
+
+def load_model(path: str):
+    """Unpickle a model once and reuse it until the file changes on disk.
+
+    predict() used to reopen the .pkl on every call (about 1.5 ms of the 4 Hz
+    inference tick); keying on mtime keeps a retrained model visible at once.
+    """
+    mtime = os.path.getmtime(path)
+    hit = _model_cache.get(path)
+    if hit is not None and hit[0] == mtime:
+        return hit[1]
+    with open(path, "rb") as f:
+        model = pickle.load(f)
+    _model_cache[path] = (mtime, model)
+    return model
+
+
 def get_db():
     db = SessionLocal()
     try:
@@ -189,8 +208,7 @@ def predict(req: schemas.PredictRequest, db: Session = Depends(get_db)):
         raise HTTPException(404, "No trained model found. Train a model first.")
 
     try:
-        with open(latest_model.path, "rb") as f:
-            model = pickle.load(f)
+        model = load_model(latest_model.path)
     except Exception as e:
         raise HTTPException(500, f"Failed to load model: {str(e)}")
 
