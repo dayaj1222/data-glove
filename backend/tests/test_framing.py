@@ -128,6 +128,38 @@ def test_headerless_frame_still_parses():
     assert len(out.frames) == 1
 
 
+# --- desync recovery --------------------------------------------------------
+
+def test_long_printable_garbage_does_not_stall_frames():
+    """A desynced stream must keep parsing frames, not pile up bytes.
+
+    Regression: a printable-but-not-a-frame run used to be buffered until
+    MAX_LOOKAHEAD and then cleared wholesale, so no frame was ever emitted
+    again while total_bytes kept climbing.
+    """
+    d = FrameDecoder()
+    d.feed(b"junk" * 400)              # 1600 printable bytes, no newline
+    out = d.feed(make_frame(flex=(11, 22, 33, 44, 55)))
+    assert len(out.frames) == 1
+    assert out.frames[0]["flex"][0] == 11
+
+
+def test_binary_garbage_before_magic_is_dropped():
+    d = FrameDecoder()
+    out = d.feed(b"\x00\xff\x01" + make_frame(flex=(7, 8, 9, 10, 11)))
+    assert len(out.frames) == 1
+    assert out.frames[0]["flex"] == [7, 8, 9, 10, 11]
+
+
+def test_frames_keep_coming_after_text_burst():
+    d = FrameDecoder()
+    d.feed(b"[imu] ready\n" * 50)
+    frames = []
+    for _ in range(5):
+        frames += d.feed(make_frame()).frames
+    assert len(frames) == 5
+
+
 # --- decode_line ------------------------------------------------------------
 
 def test_decode_line_strips_cr():

@@ -28,7 +28,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ..serial_manager import serial_manager, DEFAULT_BAUD, DEFAULT_PORT
+from ..serial_manager import serial_manager, DEFAULT_BAUD, DEFAULT_PORT, find_usb_port
 
 router = APIRouter()
 
@@ -72,7 +72,7 @@ def device_status() -> Dict[str, Any]:
 
 @router.get("/device/ports")
 def device_ports() -> Dict[str, Any]:
-    return {"ports": serial_manager.list_ports(), "default": DEFAULT_PORT}
+    return {"ports": serial_manager.list_ports(), "default": find_usb_port(DEFAULT_PORT) or DEFAULT_PORT}
 
 
 @router.get("/device/logs")

@@ -24,7 +24,11 @@ FRAME_SIZE = len(FRAME_MAGIC) + PAYLOAD_SIZE          # 48
 # the sensor is extreme, so the parser resyncs rather than emitting garbage.
 MAX_ADC = 4095
 MAX_ABS_FLOAT = 1e4
-MAX_LOOKAHEAD = 4096
+# Text lines are short. Capping lookahead much lower than before means a
+# desynced stream is dropped quickly instead of accumulating kilobytes of
+# binary into one bogus "log line" -- which used to stall frame parsing
+# entirely while total_bytes kept climbing.
+MAX_LOOKAHEAD = 512
 
 
 def decode_line(raw: bytes) -> str:
@@ -138,6 +142,9 @@ class FrameDecoder:
                                 tf = parse_text_frame(text)
                                 if tf is not None:
                                     out.frames.append(tf)
+                    # Drop the prefix either way. If it was not printable it is
+                    # binary garbage, and keeping it made the parser crawl one
+                    # byte at a time through it.
                     del buf[:mi]
                     continue
                 if mi == 0:
@@ -176,11 +183,14 @@ class FrameDecoder:
             # 3) Head looks like printable ASCII: probably a line in flight.
             if 0x20 <= buf[0] < 0x7F:
                 if not final and len(buf) < MAX_LOOKAHEAD:
-                    break          # wait for more data
-                # Flushing, or the line is absurdly long: emit it as text now.
-                out.lines.append(decode_line(bytes(buf)))
-                buf.clear()
-                break
+                    break          # wait for more data, but only briefly
+                # Flushing, or the run is absurdly long for text: emit the
+                # printable head as a line and DROP it, keeping any tail that
+                # may be the start of a real frame. Never clear the buffer
+                # wholesale: that is what lost frames permanently.
+                out.lines.append(decode_line(bytes(buf[:MAX_LOOKAHEAD])))
+                del buf[:MAX_LOOKAHEAD]
+                continue
 
             # 4) Misaligned: drop ONE byte and resync.
             del buf[:1]

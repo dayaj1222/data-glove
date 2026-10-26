@@ -22,6 +22,18 @@ DEFAULT_BAUD = 115200
 SIMPLE_FRAME_SIZE = PAYLOAD_SIZE
 
 
+def find_usb_port(preferred: Optional[str] = None) -> Optional[str]:
+    """`preferred` if it exists, else the first ttyUSB*/ttyACM* device, else None.
+
+    The CP210x re-enumerates as ttyUSB0 or ttyUSB1, so a fixed path goes stale.
+    """
+    import glob
+    found = sorted(glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*"))
+    if preferred in found:
+        return preferred
+    return found[0] if found else None
+
+
 class SerialManager:
     """Owns the serial port and the background reader thread."""
 
@@ -69,6 +81,9 @@ class SerialManager:
 
         with self._lock:
             target_port = port or self.port or DEFAULT_PORT
+            # A stale path (board came back on the other ttyUSB number) is
+            # swapped for whichever port actually exists.
+            target_port = find_usb_port(target_port) or target_port
             if self.connected and self.port == target_port and self.baud == baud:
                 return True
             # Always tear down any previous reader FIRST, and wait for it to
@@ -145,18 +160,68 @@ class SerialManager:
         while not self._stop.is_set():
             s = self._serial
             if s is None:
-                break
+                # Port is gone (unplugged); keep looking until it returns.
+                if self._reconnect():
+                    decoder = FrameDecoder()
+                else:
+                    time.sleep(0.5)
+                continue
             try:
                 chunk = s.read(256)
             except Exception as e:  # noqa: BLE001
+                # Unplug / USB re-enumeration: the port number can change
+                # (ttyUSB0 <-> ttyUSB1), so find the board again.
                 self.last_error = str(e)
-                time.sleep(0.3)
+                if self._reconnect():
+                    decoder = FrameDecoder()
+                else:
+                    time.sleep(0.5)
                 continue
             if not chunk:
                 continue
             self.total_bytes += len(chunk)
             self._consume(decoder.feed(chunk))
         self._consume(decoder.flush())
+
+    def _reconnect(self) -> bool:
+        """Reopen the USB-UART after it vanished; called from the reader thread.
+
+        Prefers the previous path, then any other ttyUSB*/ttyACM* device.
+        """
+        import glob
+        import serial  # imported lazily so the module loads without pyserial
+
+        old = self._serial
+        self._serial = None
+        if old is not None:
+            try:
+                old.close()
+            except Exception:
+                pass
+        candidates = sorted(glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*"))
+        if self.port in candidates:
+            candidates.remove(self.port)
+            candidates.insert(0, self.port)
+        for path in candidates:
+            try:
+                ser = serial.Serial(path, self.baud, timeout=0.2, dsrdtr=False, rtscts=False)
+                ser.dtr = True
+                ser.rts = False
+            except Exception as e:  # noqa: BLE001
+                self.last_error = str(e)
+                continue
+            with self._lock:
+                if self._stop.is_set():
+                    ser.close()
+                    return False
+                self._serial = ser
+                self.port = path
+                self.connected = True
+                self.last_error = None
+            self._append_log(f"[host] reconnected {path} @ {self.baud}", level="system")
+            return True
+        self.connected = False
+        return False
 
     def _consume(self, result) -> None:
         """Apply a decoder result to the manager's buffers."""
