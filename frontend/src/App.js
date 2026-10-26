@@ -6,6 +6,10 @@ import RecordingUI from './components/RecordingUI';
 import TrainingUI from './components/TrainingUI';
 import PredictUI from './components/PredictUI';
 import DeviceMonitor from './components/DeviceMonitor';
+import ArcadeUI from './components/ArcadeUI';
+import SniperUI from './components/SniperUI';
+import PuzzleUI from './components/PuzzleUI';
+import AirMouseUI from './components/AirMouseUI';
 
 function App() {
   const [activeTab, setActiveTab] = useState('device');
@@ -17,6 +21,10 @@ function App() {
     { id: 'record', label: 'Record', icon: 'circle' },
     { id: 'train', label: 'Train', icon: 'brain' },
     { id: 'predict', label: 'Predict', icon: 'eye' },
+    { id: 'arcade', label: 'Arcade', icon: 'game' },
+    { id: 'sniper', label: 'Sniper', icon: 'target' },
+    { id: 'puzzle', label: 'Puzzle', icon: 'game' },
+    { id: 'airmouse', label: 'Air Mouse', icon: 'game' },
   ];
 
   return (
@@ -59,6 +67,12 @@ function App() {
                   {tab.icon === 'eye' && (
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
                   )}
+                  {tab.icon === 'target' && (
+                    <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><circle cx='12' cy='12' r='9'/><circle cx='12' cy='12' r='4'/><path d='M12 1v4M12 19v4M1 12h4M19 12h4'/></svg>
+                  )}
+                  {tab.icon === 'game' && (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="12" rx="3"/><path d="M7 11v4M5 13h4M16 12h.01M18 15h.01"/></svg>
+                  )}
                 </span>
                 {tab.label}
               </button>
@@ -73,6 +87,10 @@ function App() {
         {activeTab === 'record' && <RecordingUI />}
         {activeTab === 'train' && <TrainingUI />}
         {activeTab === 'predict' && <PredictUI />}
+        {activeTab === 'arcade' && <ArcadeUI />}
+        {activeTab === 'sniper' && <SniperUI />}
+        {activeTab === 'puzzle' && <PuzzleUI />}
+        {activeTab === 'airmouse' && <AirMouseUI />}
       </main>
     </div>
   );

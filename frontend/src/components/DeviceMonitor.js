@@ -5,6 +5,8 @@ import {
   deviceFlash,
 } from '../api';
 
+// Glove has 2 flex sensors (D34, D35); firmware pads the other channels with 0.
+const ACTIVE_FLEX = 2;
 const BAUD_OPTIONS = [9600, 19200, 38400, 57600, 74880, 115200, 230400];
 
 function Bar({ label, value, max = 1023 }) {
@@ -293,18 +295,17 @@ function DeviceMonitor() {
 
       {tab === 'sensors' && (
         <div className="dev-sensors">
-          {!frame && <div className="dev-empty">No sensor frames parsed yet. Frames appear when the firmware writes the 58-byte binary packet (5×uint16 flex + 9×float32 IMU).</div>}
+          {!frame && <div className="dev-empty">No sensor frames parsed yet. Frames appear when the firmware writes the 48-byte binary packet (5×uint16 flex + 9×float32 IMU).</div>}
           {frame && (
             <>
               <div className="dev-section">
-                <h4>Flex (raw ADC 0–1023)</h4>
-                {frame.flex.map((v, i) => <Bar key={i} label={`F${i}`} value={v} />)}
+                <h4>Flex (raw ADC 0–4095)</h4>
+                {frame.flex.slice(0, ACTIVE_FLEX).map((v, i) => <Bar key={i} label={`F${i}`} value={v} max={4095} />)}
               </div>
               <div className="dev-section">
                 <h4>IMU (x / y / z)</h4>
                 <Axis label="Accel" v={frame.accel} />
                 <Axis label="Gyro" v={frame.gyro} />
-                <Axis label="Mag" v={frame.mag} />
               </div>
               <div className="dev-raw">raw: {frame.raw_hex}</div>
             </>

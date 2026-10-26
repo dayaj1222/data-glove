@@ -247,3 +247,34 @@ pre {
   flex: 1; background: #0d0d0d; color: #d4d4d4; border: 1px solid #2a2a2a; border-radius: 6px;
   padding: 12px; font-family: Consolas, Monaco, monospace; font-size: 12px; line-height: 1.5; resize: none;
 }
+
+/* ===================== Arcade / Flex Shooter ===================== */
+.arc-card { padding: 22px 22px 26px; }
+.arc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.arc-head h2 { margin-bottom: 4px; }
+.arc-head p { margin-bottom: 0; }
+.arc-sub { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+.arc-hud { display: flex; gap: 8px; flex-wrap: wrap; }
+.arc-stat { background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; min-width: 62px; text-align: center; }
+.arc-stat label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); }
+.arc-stat b { font-size: 15px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.arc-stat b.warn { color: #f87171; }
+.arc-stat b.ok { color: #4ade80; }
+.arc-stage { position: relative; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #0b0b16; }
+.arc-canvas { display: block; width: 100%; height: auto; }
+.arc-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(15, 15, 26, 0.72); }
+.arc-overlay-title { font-size: 26px; font-weight: 700; }
+.arc-overlay-sub { color: var(--text-secondary); font-size: 14px; }
+.arc-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.arc-hint { color: var(--text-muted); font-size: 12px; margin-left: auto; }
+.arc-settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; align-items: center; margin-top: 16px; }
+.arc-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+.arc-toggle input { flex: 0 0 auto; min-width: 0; width: 16px; height: 16px; accent-color: var(--accent); }
+.arc-live { color: #4ade80; font-size: 12px; }
+.arc-dead { color: #f87171; font-size: 12px; }
+.arc-slider { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.arc-slider b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.arc-slider input[type=range] { width: 100%; min-width: 0; padding: 0; accent-color: var(--accent); }
+.arc-sensor { display: flex; gap: 8px; flex-wrap: wrap; }
+.arc-calib { display: flex; gap: 8px; flex-wrap: wrap; grid-column: 1 / -1; }
+.arc-calib .btn { flex: 1 1 180px; }

@@ -11,7 +11,7 @@ function PredictUI() {
   const [bufferSize, setBufferSize] = useState(60);
   const [useEsp, setUseEsp] = useState(true);
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.6);
-  const [latestFrame, setLatestFrame] = useState(null);
+  const [, setLatestFrame] = useState(null);
   const [history, setHistory] = useState([]);
   const [actionTriggered, setActionTriggered] = useState(false);
   const [smoothConfidence, setSmoothConfidence] = useState(0);
