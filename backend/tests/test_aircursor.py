@@ -31,7 +31,7 @@ class Src:
 
 
 def make(**cfg):
-    ac = AirCursor(Src(), device_factory=lambda: FakeDev())
+    ac = AirCursor(Src(), device_factory=lambda: FakeDev(), calibration_path=Path('/nonexistent/aircursor.json'))
     ac._dev = FakeDev()        # drive process() directly, no thread
     ac.update_config(cfg)
     return ac, ac._dev
@@ -243,7 +243,7 @@ def test_finger_calibration_sets_thresholds():
             src.frames_total += 1
             time.sleep(0.005)
 
-    ac = AirCursor(src, device_factory=lambda: FakeDev())
+    ac = AirCursor(src, device_factory=lambda: FakeDev(), calibration_path=Path('/nonexistent/aircursor.json'))
     t = threading.Thread(target=pump); t.start()
     ac.capture_fingers("straight", seconds=0.5)
     t.join()

@@ -90,7 +90,7 @@ dec = FrameDecoder()
 res["framing_decode_per_frame"] = stats(timeit_us(lambda: dec.feed(raw), 20000), "us")
 
 # ---- 2. air mouse: one sample through process() ---------------------------------
-ac = AirCursor(Src(), device_factory=lambda: FakeDev())
+ac = AirCursor(Src(), device_factory=lambda: FakeDev(), calibration_path=Path('/nonexistent/aircursor.json'))
 ac._dev = FakeDev()
 f_move = frame(gyro=(0, -40, 10), flex=(0, 300))
 t = [100.0]
@@ -136,7 +136,7 @@ lat = []
 for trial in range(60):
     src = Src()
     dev = FakeDev()
-    ac2 = AirCursor(src, device_factory=lambda d=dev: d)
+    ac2 = AirCursor(src, device_factory=lambda d=dev: d, calibration_path=Path('/nonexistent/aircursor.json'))
     ac2.enable()
     time.sleep(0.15)                       # let the loop settle on "now"
     for _ in range(10):
@@ -162,7 +162,7 @@ rel = []
 for trial in range(10):
     src = Src()
     dev = FakeDev()
-    ac3 = AirCursor(src, device_factory=lambda d=dev: d)
+    ac3 = AirCursor(src, device_factory=lambda d=dev: d, calibration_path=Path('/nonexistent/aircursor.json'))
     ac3.enable()
     time.sleep(0.1)
     for _ in range(40):                    # hold the primary finger bent -> left button down
@@ -183,7 +183,7 @@ res["fault_glove_silent_to_button_release"] = stats(rel, "ms")
 res["raw_release_ms"] = [round(x, 2) for x in rel]
 
 # ---- 5b. per-node cost inside AirCursor.process (the CDFG node table) ----------
-ac4 = AirCursor(Src(), device_factory=lambda: FakeDev())
+ac4 = AirCursor(Src(), device_factory=lambda: FakeDev(), calibration_path=Path('/nonexistent/aircursor.json'))
 ac4._dev = FakeDev()
 fr = frame(gyro=(0, -40, 10), flex=(0, 300), accel=(0.05, 0.9, 0.3))
 nodes = {}

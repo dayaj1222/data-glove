@@ -110,6 +110,38 @@ def device_frame() -> Dict[str, Any]:
     return {"connected": serial_manager.is_open, "frame": frame}
 
 
+def _flat(f: Dict[str, Any]) -> Dict[str, float]:
+    flex = list(f.get("flex") or [0] * 5)
+    accel = list(f.get("accel") or [0.0] * 3)
+    gyro = list(f.get("gyro") or [0.0] * 3)
+    out: Dict[str, float] = {}
+    for i in range(5):
+        out[f"flex_{i}"] = float(flex[i]) if i < len(flex) else 0.0
+    for i, ax in enumerate(("x", "y", "z")):
+        out[f"accel_{ax}"] = float(accel[i]) if i < len(accel) else 0.0
+        out[f"gyro_{ax}"] = float(gyro[i]) if i < len(gyro) else 0.0
+    return out
+
+
+@router.get("/device/frames")
+def device_frames(since: int = 0, limit: int = 200) -> Dict[str, Any]:
+    """Every frame received after counter `since`, oldest first, plus the new counter.
+
+    Frames arrive in bursts, so polling only the latest one drops most of them; a
+    consumer that integrates the gyro (the 3D hand view) needs all of them. Pass
+    back the returned `total` as `since` on the next call. If the counter went
+    backwards (port reopened) the newest few frames are returned.
+    """
+    total = serial_manager.frames_total
+    buf = list(serial_manager.frames)
+    if since > total:
+        n = min(len(buf), 5)
+    else:
+        n = min(total - since, len(buf), max(1, limit))
+    frames = [_flat(f) for f in buf[-n:]] if n > 0 else []
+    return {"connected": serial_manager.is_open, "total": total, "frames": frames}
+
+
 @router.get("/device/sensors")
 def device_sensors(limit: int = 200) -> Dict[str, Any]:
     frames = list(serial_manager.frames)[-limit:]

@@ -76,6 +76,23 @@ class SerialManager:
                 ports.append({"device": dev, "description": "", "hwid": ""})
         return ports
 
+    @staticmethod
+    def _reset_into_run(ser: Any) -> None:
+        """Pulse EN with IO0 released so the firmware always boots normally after we open the port.
+
+        Opening a port leaves DTR/RTS in whatever state the last user left them, and a board that was
+        reset with IO0 held low sits in the ROM bootloader and never streams. DTR drives IO0 and RTS
+        drives EN through the usual auto-reset circuit (both active low); boards without that circuit
+        simply ignore this.
+        """
+        try:
+            ser.dtr = False          # IO0 high: boot the firmware, not the bootloader
+            ser.rts = True           # EN low: hold in reset
+            time.sleep(0.08)
+            ser.rts = False          # EN high: run
+        except Exception:  # noqa: BLE001 - never let a line-control quirk stop the port opening
+            pass
+
     def open(self, port: Optional[str] = None, baud: int = DEFAULT_BAUD) -> bool:
         import serial  # imported lazily so the module loads without pyserial
 
@@ -101,8 +118,7 @@ class SerialManager:
                     rtscts=False,
                 )
                 # Do NOT toggle DTR on open: that resets many boards. Leave as-is.
-                self._serial.dtr = True
-                self._serial.rts = False
+                self._reset_into_run(self._serial)
                 self.connected = True
                 self.last_error = None
             except Exception as e:  # noqa: BLE001
@@ -205,8 +221,7 @@ class SerialManager:
         for path in candidates:
             try:
                 ser = serial.Serial(path, self.baud, timeout=0.2, dsrdtr=False, rtscts=False)
-                ser.dtr = True
-                ser.rts = False
+                self._reset_into_run(ser)
             except Exception as e:  # noqa: BLE001
                 self.last_error = str(e)
                 continue

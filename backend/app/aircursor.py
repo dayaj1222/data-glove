@@ -120,7 +120,9 @@ class Hysteresis:
 
 
 class AirCursor:
-    def __init__(self, source: Any, device_factory: Optional[Callable[[], Any]] = None) -> None:
+    def __init__(self, source: Any, device_factory: Optional[Callable[[], Any]] = None,
+                 calibration_path: Optional[Path] = None) -> None:
+        self._cal_path = Path(calibration_path) if calibration_path is not None else CALIBRATION_FILE
         self._source = source                     # object with .latest_frame / .frames_total
         self._factory = device_factory or self._real_device
         self.config: Dict[str, Any] = dict(DEFAULT_CONFIG)
@@ -387,7 +389,7 @@ class AirCursor:
     # ----------------------------------------------------------- calibration
     def _load_poses(self) -> None:
         try:
-            data = json.loads(CALIBRATION_FILE.read_text())
+            data = json.loads(self._cal_path.read_text())
             for z in ZONES:
                 v = data.get(z)
                 if isinstance(v, list) and len(v) == 3:
@@ -397,7 +399,7 @@ class AirCursor:
 
     def _save_poses(self) -> None:
         try:
-            CALIBRATION_FILE.write_text(json.dumps(self.poses))
+            self._cal_path.write_text(json.dumps(self.poses))
         except Exception:  # noqa: BLE001
             pass
 
