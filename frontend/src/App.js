@@ -10,9 +10,11 @@ import ArcadeUI from './components/ArcadeUI';
 import SniperUI from './components/SniperUI';
 import PuzzleUI from './components/PuzzleUI';
 import AirMouseUI from './components/AirMouseUI';
+import HandViewer from './components/HandViewer';
+import BlockStacker from './components/BlockStacker';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('device');
+  const [activeTab, setActiveTab] = useState(() => window.location.hash.slice(1) || 'device');
 
   const tabs = [
     { id: 'device', label: 'ESP Monitor', icon: 'chip' },
@@ -25,6 +27,8 @@ function App() {
     { id: 'sniper', label: 'Sniper', icon: 'target' },
     { id: 'puzzle', label: 'Puzzle', icon: 'game' },
     { id: 'airmouse', label: 'Air Mouse', icon: 'game' },
+    { id: 'hand3d', label: 'Hand 3D', icon: 'hand' },
+    { id: 'blocks', label: 'Blocks 3D', icon: 'game' },
   ];
 
   return (
@@ -91,6 +95,8 @@ function App() {
         {activeTab === 'sniper' && <SniperUI />}
         {activeTab === 'puzzle' && <PuzzleUI />}
         {activeTab === 'airmouse' && <AirMouseUI />}
+        {activeTab === 'hand3d' && <HandViewer />}
+        {activeTab === 'blocks' && <BlockStacker />}
       </main>
     </div>
   );
